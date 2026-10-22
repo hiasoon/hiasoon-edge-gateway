@@ -49,7 +49,7 @@
 | Docker | 20.10+ | `yum install -y docker && systemctl enable --now docker` |
 
 > ⚠️ Maven 构建需要联网下载依赖。若构建机为内网环境，请提前配置好私服或本地仓库（`~/.m2/repository`）。
-> ⚠️ 项目依赖私有 SDK `com.hiasoon:hiasoon-api-sdk:1.0.0`，需确保该依赖已安装到构建机本地仓库或私服。
+> ⚠️ 项目依赖 `com.hiasoon:hiasoon-api-sdk:1.0.0`，该组件已发布至 Maven Central，联网环境可直接自动下载；内网构建机请通过私服代理或提前放入本地仓库。
 
 ## 1.2 构建脚本说明（heg.sh）
 

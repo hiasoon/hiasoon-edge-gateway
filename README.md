@@ -66,7 +66,7 @@
 | Maven | 3.6+ | 构建 |
 | Docker | 20.10+ | 可选，构建/运行镜像 |
 
-> **注意**：项目依赖 `com.hiasoon:hiasoon-api-sdk`（当前版本 `1.0.0`）。该依赖不在公共 Maven 仓库中，需要提前安装到本地 Maven 仓库或私有 Maven 仓库，否则 `mvn package` 会失败。安装方式见 [DEPLOY.md](DEPLOY.md)。
+> **说明**：项目依赖 `com.hiasoon:hiasoon-api-sdk`（当前版本 `1.0.0`），已发布至 [Maven Central](https://repo1.maven.org/maven2/com/hiasoon/hiasoon-api-sdk/1.0.0/)，构建时会自动下载，无需额外配置。
 
 ### 本地构建与运行
 
