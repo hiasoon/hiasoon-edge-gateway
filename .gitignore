@@ -1,0 +1,9 @@
+# 项目排除路径
+/target/
+
+# IDE
+/.idea/
+*.iml
+
+# 构建产物：镜像 tar 包
+/*.tar

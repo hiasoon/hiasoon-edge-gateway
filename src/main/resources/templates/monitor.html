@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HEG 验证网关 - 管理控制台</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background-color: #f0f2f5;
+            color: rgba(0, 0, 0, 0.85);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        /* Layout */
+        .layout { display: flex; min-height: 100vh; }
+
+        .sider {
+            width: 208px;
+            background: #001529;
+            flex-shrink: 0;
+        }
+
+        .sider-logo {
+            height: 64px;
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .sider-logo .dot {
+            width: 8px;
+            height: 8px;
+            background: #1890ff;
+            border-radius: 1px;
+            margin-right: 10px;
+        }
+
+        .menu { padding: 12px 0; }
+
+        .menu-item {
+            padding: 12px 24px;
+            color: rgba(255, 255, 255, 0.65);
+            cursor: pointer;
+            font-size: 14px;
+            transition: color 0.2s, background-color 0.2s;
+        }
+
+        .menu-item:hover { color: #fff; background-color: rgba(255, 255, 255, 0.06); }
+
+        .menu-item.active { color: #fff; background-color: #1890ff; }
+
+        .menu-item.active:hover { background-color: #1890ff; }
+
+        .main { flex: 1; display: flex; flex-direction: column; }
+
+        .header {
+            height: 64px;
+            background: #fff;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            justify-content: space-between;
+        }
+
+        .header-title { font-size: 16px; font-weight: 500; }
+
+        .header-info { display: flex; gap: 24px; font-size: 13px; color: rgba(0, 0, 0, 0.45); }
+        .header-info strong { color: rgba(0, 0, 0, 0.85); font-weight: 500; }
+
+        .content { flex: 1; padding: 16px 24px; overflow-y: auto; }
+
+        /* Breadcrumb */
+        .breadcrumb {
+            font-size: 14px;
+            color: rgba(0, 0, 0, 0.45);
+            margin-bottom: 16px;
+        }
+        .breadcrumb-current { color: rgba(0, 0, 0, 0.85); }
+
+        /* Page */
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* Card / Panel */
+        .card {
+            background: #fff;
+            border: 1px solid #f0f0f0;
+            margin-bottom: 16px;
+        }
+
+        .card-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title { font-size: 14px; font-weight: 500; }
+
+        .card-body { padding: 24px; }
+
+        /* Button */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 15px;
+            font-size: 14px;
+            line-height: 1.5715;
+            border: 1px solid #d9d9d9;
+            background: #fff;
+            color: rgba(0, 0, 0, 0.85);
+            cursor: pointer;
+            border-radius: 2px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .btn:hover { border-color: #40a9ff; color: #40a9ff; }
+
+        .btn-primary {
+            background: #1890ff;
+            border-color: #1890ff;
+            color: #fff;
+        }
+        .btn-primary:hover { background: #40a9ff; border-color: #40a9ff; color: #fff; }
+
+        .btn-danger { color: #ff4d4f; border-color: #ff4d4f; }
+        .btn-danger:hover { color: #fff; background: #ff4d4f; border-color: #ff4d4f; }
+
+        .btn-sm { padding: 0 7px; font-size: 12px; height: 22px; }
+        .btn-link { border: none; background: none; color: #1890ff; padding: 0 4px; }
+        .btn-link:hover { color: #40a9ff; background: none; border: none; }
+
+        /* Form */
+        .form-item { margin-bottom: 16px; }
+        .form-label {
+            display: block;
+            font-size: 14px;
+            color: rgba(0, 0, 0, 0.85);
+            margin-bottom: 4px;
+        }
+        .form-control,
+        .form-textarea,
+        .form-select {
+            width: 100%;
+            padding: 4px 11px;
+            font-size: 14px;
+            line-height: 1.5715;
+            border: 1px solid #d9d9d9;
+            background: #fff;
+            transition: all 0.2s;
+            border-radius: 2px;
+        }
+        .form-control:focus,
+        .form-textarea:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: #40a9ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+        .form-textarea { min-height: 72px; resize: vertical; }
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px 24px;
+        }
+        .form-placeholder { color: rgba(0, 0, 0, 0.25); font-size: 14px; }
+
+        /* Table */
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        .table th,
+        .table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .table th {
+            background: #fafafa;
+            font-weight: 500;
+            color: rgba(0, 0, 0, 0.85);
+        }
+        .table tbody tr:hover { background: #fafafa; }
+        .table-empty {
+            text-align: center;
+            padding: 48px 16px;
+            color: rgba(0, 0, 0, 0.25);
+        }
+
+        /* Tag */
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 0 7px;
+            font-size: 12px;
+            line-height: 20px;
+            background: #fafafa;
+            border: 1px solid #d9d9d9;
+            color: rgba(0, 0, 0, 0.65);
+            border-radius: 2px;
+            margin: 2px 4px 2px 0;
+        }
+        .tag-close {
+            margin-left: 4px;
+            cursor: pointer;
+            color: rgba(0, 0, 0, 0.45);
+        }
+        .tag-close:hover { color: #ff4d4f; }
+
+        /* Status dot */
+        .status-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .status-success { background: #52c41a; }
+        .status-error { background: #ff4d4f; }
+        .status-warning { background: #faad14; }
+        .status-default { background: #bfbfbf; }
+
+        /* Stats */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .stat-card {
+            background: #fff;
+            border: 1px solid #f0f0f0;
+            padding: 16px 24px;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: rgba(0, 0, 0, 0.45);
+            margin-bottom: 8px;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: rgba(0, 0, 0, 0.85);
+        }
+
+        /* Log */
+        .log-container {
+            background: #fafafa;
+            border: 1px solid #f0f0f0;
+            height: 480px;
+            overflow-y: auto;
+            padding: 12px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 12px;
+        }
+        .log-container::-webkit-scrollbar { width: 4px; height: 4px; }
+        .log-container::-webkit-scrollbar-thumb { background: #e8e8e8; }
+
+        .log-entry {
+            padding: 8px 12px;
+            margin-bottom: 4px;
+            background: #fff;
+            border: 1px solid #f0f0f0;
+            border-left: 3px solid #d9d9d9;
+        }
+        .log-entry.success { border-left-color: #52c41a; }
+        .log-entry.error { border-left-color: #ff4d4f; }
+        .log-entry-warning { border-left-color: #faad14; }
+
+        .log-entry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+        .log-time { color: rgba(0, 0, 0, 0.45); }
+        .log-duration { color: #1890ff; }
+
+        .log-content-text { color: rgba(0, 0, 0, 0.85); word-break: break-all; }
+        .log-error-msg { color: #ff4d4f; margin-top: 4px; }
+
+        /* Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 22px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .switch-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #bfbfbf;
+            transition: 0.2s;
+            border-radius: 100px;
+        }
+        .switch-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 2px;
+            bottom: 2px;
+            background-color: #fff;
+            transition: 0.2s;
+            border-radius: 50%;
+        }
+        input:checked + .switch-slider { background-color: #1890ff; }
+        input:checked + .switch-slider:before { transform: translateX(22px); }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #f0f0f0;
+            margin-bottom: 16px;
+        }
+        .tab {
+            padding: 12px 16px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            color: rgba(0, 0, 0, 0.65);
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        .tab:hover { color: #1890ff; }
+        .tab.active { color: #1890ff; border-bottom-color: #1890ff; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 48px 16px;
+            color: rgba(0, 0, 0, 0.25);
+            font-size: 14px;
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .toast {
+            padding: 10px 16px;
+            background: #fff;
+            border: 1px solid #f0f0f0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 200px;
+        }
+        .toast.success { border-left: 3px solid #52c41a; }
+        .toast.error { border-left: 3px solid #ff4d4f; }
+        .toast.info { border-left: 3px solid #1890ff; }
+        .toast.warning { border-left: 3px solid #faad14; }
+
+        /* Data source form block */
+        .ds-block {
+            border: 1px solid #f0f0f0;
+            padding: 16px 24px;
+            margin-bottom: 12px;
+            background: #fafafa;
+        }
+        .ds-block-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px dashed #e8e8e8;
+        }
+        .ds-block-title { font-weight: 500; color: rgba(0, 0, 0, 0.85); }
+
+        /* Tag input */
+        .tag-input-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .tag-input-row input { flex: 1; }
+
+        /* Section title */
+        .section-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .hidden { display: none !important; }
+
+        .text-muted { color: rgba(0, 0, 0, 0.45); font-size: 12px; }
+        .text-danger { color: #ff4d4f; }
+        .mt-8 { margin-top: 8px; }
+        .mt-16 { margin-top: 16px; }
+        .ml-8 { margin-left: 8px; }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <!-- Sider -->
+        <aside class="sider">
+            <div class="sider-logo">
+                <span class="dot"></span>
+                <span>HEG 控制台</span>
+            </div>
+            <nav class="menu">
+                <div class="menu-item active" data-page="overview" onclick="switchPage('overview')">运行概览</div>
+                <div class="menu-item" data-page="config" onclick="switchPage('config')">系统配置</div>
+            </nav>
+        </aside>
+
+        <!-- Main -->
+        <div class="main">
+            <header class="header">
+                <div class="header-title">HEG 验证网关管理控制台</div>
+                <div class="header-info">
+                    <div>WebSocket: <strong id="infoWsUrl">-</strong></div>
+                    <div>API 地址: <strong id="infoApiUrl">-</strong></div>
+                    <div>运行时长: <strong id="infoUptime">-</strong></div>
+                </div>
+            </header>
+
+            <div class="content">
+                <!-- Overview Page -->
+                <div id="overview" class="page active">
+                    <div class="breadcrumb"><span class="breadcrumb-current">运行概览</span></div>
+
+                    <div class="stats-row">
+                        <div class="stat-card">
+                            <div class="stat-label">MySQL 数据源</div>
+                            <div class="stat-value" id="statMysqlCount">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Redis 数据源</div>
+                            <div class="stat-value" id="statRedisCount">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">MongoDB 数据源</div>
+                            <div class="stat-value" id="statMongoCount">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">连接状态</div>
+                            <div class="stat-value" id="statConnStatus">-</div>
+                        </div>
+                    </div>
+
+                    <!-- Connection Status -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">远端连接状态</div>
+                            <button class="btn btn-sm" onclick="refreshConnectionStatus()">刷新</button>
+                        </div>
+                        <div class="card-body">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:200px">名称</th>
+                                        <th>详情</th>
+                                        <th style="width:100px">状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="connectionTable">
+                                    <tr><td colspan="3" class="table-empty">加载中...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Logs -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">执行日志</div>
+                            <div>
+                                <label class="text-muted" for="autoRefresh" style="margin-right:12px">
+                                    <input type="checkbox" id="autoRefresh" checked style="vertical-align:middle">
+                                    自动刷新 (3秒)
+                                </label>
+                                <button class="btn btn-sm btn-danger" onclick="clearLogs('sql')">清空 SQL 日志</button>
+                                <button class="btn btn-sm btn-danger ml-8" onclick="clearLogs('proxy')">清空转发日志</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="tabs">
+                                <button class="tab active" onclick="switchLogTab(event, 'sql')">SQL 执行日志</button>
+                                <button class="tab" onclick="switchLogTab(event, 'proxy')">接口转发日志</button>
+                            </div>
+
+                            <div id="sql" class="tab-content active">
+                                <div class="text-muted mb-8">显示最近 <strong id="sqlCount">0</strong> 条记录</div>
+                                <div class="log-container" id="sqlLogs">
+                                    <div class="empty-state">暂无日志</div>
+                                </div>
+                            </div>
+
+                            <div id="proxy" class="tab-content">
+                                <div class="text-muted mb-8">显示最近 <strong id="proxyCount">0</strong> 条记录</div>
+                                <div class="log-container" id="proxyLogs">
+                                    <div class="empty-state">暂无日志</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Config Page -->
+                <div id="config" class="page">
+
+                    <!-- Cloud Config -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">云端连接配置</div>
+                            <button class="btn btn-primary btn-sm" onclick="saveCloudConfig()">保存</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row">
+                                <div class="form-item">
+                                    <label class="form-label">WebSocket 地址</label>
+                                    <input type="text" class="form-control" id="cfgWsUrl" placeholder="ws://host:port/path">
+                                </div>
+                                <div class="form-item">
+                                    <label class="form-label">API 基础地址</label>
+                                    <input type="text" class="form-control" id="cfgApiUrl" placeholder="https://api.example.com">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-item">
+                                    <label class="form-label">应用 ID</label>
+                                    <input type="text" class="form-control" id="cfgAppId" placeholder="APPLxxxx">
+                                </div>
+                                <div class="form-item">
+                                    <label class="form-label">密钥</label>
+                                    <input type="password" class="form-control" id="cfgSecretKey" placeholder="留空则不修改">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MySQL DataSources -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">MySQL 数据源</div>
+                            <div>
+                                <button class="btn btn-sm" onclick="addMysqlSource()">新增</button>
+                                <button class="btn btn-primary btn-sm ml-8" onclick="saveMysqlConfig()">保存并重载</button>
+                            </div>
+                        </div>
+                        <div class="card-body" id="mysqlSources"></div>
+                    </div>
+
+                    <!-- Redis DataSources -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Redis 数据源</div>
+                            <div>
+                                <button class="btn btn-sm" onclick="addRedisSource()">新增</button>
+                                <button class="btn btn-primary btn-sm ml-8" onclick="saveRedisConfig()">保存并重载</button>
+                            </div>
+                        </div>
+                        <div class="card-body" id="redisSources"></div>
+                    </div>
+
+                    <!-- MongoDB DataSources -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">MongoDB 数据源</div>
+                            <div>
+                                <button class="btn btn-sm" onclick="addMongoSource()">新增</button>
+                                <button class="btn btn-primary btn-sm ml-8" onclick="saveMongoConfig()">保存并重载</button>
+                            </div>
+                        </div>
+                        <div class="card-body" id="mongoSources"></div>
+                    </div>
+
+                    <!-- Proxy Headers -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">接口转发请求头配置</div>
+                            <button class="btn btn-primary btn-sm" onclick="saveProxyHeaders()">保存</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-muted mb-8">以下请求头将允许在接口转发时透传到上游服务</div>
+                            <div id="proxyHeaderTags"></div>
+                            <div class="tag-input-row">
+                                <input type="text" class="form-control" id="proxyHeaderInput" placeholder="输入请求头名称，例如 X-Request-Id">
+                                <button class="btn btn-sm" onclick="addProxyHeader()">添加</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Log Persistence -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">日志持久化</div>
+                            <button class="btn btn-primary btn-sm" onclick="saveLogPersistence()">保存</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row">
+                                <div class="form-item">
+                                    <label class="form-label">启用文件持久化</label>
+                                    <label class="switch">
+                                        <input type="checkbox" id="logPersistEnabled">
+                                        <span class="switch-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="form-item">
+                                    <label class="form-label">保留天数</label>
+                                    <input type="number" class="form-control" id="logRetainDays" min="1" max="365" value="30">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-item">
+                                    <label class="form-label">SQL 日志路径</label>
+                                    <input type="text" class="form-control" id="logSqlPath" placeholder="logs/sql/">
+                                </div>
+                                <div class="form-item">
+                                    <label class="form-label">转发日志路径</label>
+                                    <input type="text" class="form-control" id="logProxyPath" placeholder="logs/proxy/">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-item">
+                                    <label class="form-label">单文件最大大小 (MB)</label>
+                                    <input type="number" class="form-control" id="logMaxFileSize" min="10" max="1000" value="100">
+                                </div>
+                            </div>
+                            <div class="text-muted mt-8">
+                                启用后，执行日志将同时写入内存和文件，支持按日期滚动、按大小轮转、按天数清理。
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Connection Pool Management -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">连接池管理</div>
+                            <button class="btn btn-sm" onclick="reloadAllPools()">重载所有连接池</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-muted">重载操作将关闭现有连接池并重新初始化，可能短暂中断正在执行的请求。</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script>
+        let autoRefreshInterval = null;
+        let configData = null;
+
+        function switchPage(pageName) {
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.page === pageName);
+            });
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.toggle('active', page.id === pageName);
+            });
+            if (pageName === 'config') {
+                loadConfigData();
+            }
+        }
+
+        function switchLogTab(event, tabName) {
+            const tabs = event.target.parentElement.querySelectorAll('.tab');
+            const tabContents = event.target.closest('.card-body').querySelectorAll('.tab-content');
+            tabs.forEach(t => t.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+
+        function showToast(message, type) {
+            type = type || 'success';
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            toast.textContent = message;
+            document.getElementById('toastContainer').appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s';
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = String(text);
+            return div.innerHTML;
+        }
+
+        // === Data Loading ===
+
+        async function refreshConnectionStatus() {
+            try {
+                const response = await fetch('/monitor/api/connection-status');
+                const result = await response.json();
+                const tbody = document.getElementById('connectionTable');
+
+                if (result.data && result.data.length > 0) {
+                    tbody.innerHTML = result.data.map(status => `
+                        <tr>
+                            <td>${escapeHtml(status.name)}</td>
+                            <td class="text-muted">${escapeHtml(status.details || '')}</td>
+                            <td>
+                                <span class="status-dot ${status.connected ? 'status-success' : 'status-error'}"></span>
+                                ${status.statusText}
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="3" class="table-empty">暂无连接信息</td></tr>';
+                }
+            } catch (error) {
+                console.error('获取连接状态失败:', error);
+            }
+        }
+
+        async function loadStats() {
+            try {
+                const [statsRes, configRes] = await Promise.all([
+                    fetch('/monitor/api/stats'),
+                    fetch('/monitor/api/config')
+                ]);
+                const statsResult = await statsRes.json();
+                const configResult = await configRes.json();
+
+                const data = statsResult.data;
+                document.getElementById('statMysqlCount').textContent = data.mysqlPoolSize || 0;
+                document.getElementById('statRedisCount').textContent = data.redisPoolSize || 0;
+                document.getElementById('statMongoCount').textContent = data.mongoPoolSize || 0;
+
+                const connections = await (await fetch('/monitor/api/connection-status')).json();
+                const connected = (connections.data || []).filter(c => c.connected).length;
+                const total = (connections.data || []).length;
+                document.getElementById('statConnStatus').textContent = total > 0 ? connected + ' / ' + total : '-';
+
+                const config = configResult.data;
+                if (config.cloud) {
+                    document.getElementById('infoWsUrl').textContent = config.cloud.websocketUrl || '-';
+                    document.getElementById('infoApiUrl').textContent = config.cloud.apiBaseUrl || '-';
+                }
+
+                const uptime = data.uptime;
+                if (uptime) {
+                    const startTime = new Date(uptime);
+                    const now = new Date();
+                    const diff = now - startTime;
+                    const hours = Math.floor(diff / 3600000);
+                    const minutes = Math.floor((diff % 3600000) / 60000);
+                    const seconds = Math.floor((diff % 60000) / 1000);
+                    document.getElementById('infoUptime').textContent = hours + 'h ' + minutes + 'm ' + seconds + 's';
+                }
+            } catch (error) {
+                console.error('获取统计数据失败:', error);
+            }
+        }
+
+        async function loadSqlLogs() {
+            try {
+                const response = await fetch('/monitor/api/sql-logs?limit=100');
+                const result = await response.json();
+                const container = document.getElementById('sqlLogs');
+                document.getElementById('sqlCount').textContent = result.data.length;
+
+                if (result.data.length > 0) {
+                    container.innerHTML = result.data.map(log => createLogEntry(log)).join('');
+                } else {
+                    container.innerHTML = '<div class="empty-state">暂无日志</div>';
+                }
+            } catch (error) {
+                console.error('获取SQL日志失败:', error);
+            }
+        }
+
+        async function loadProxyLogs() {
+            try {
+                const response = await fetch('/monitor/api/proxy-logs?limit=100');
+                const result = await response.json();
+                const container = document.getElementById('proxyLogs');
+                document.getElementById('proxyCount').textContent = result.data.length;
+
+                if (result.data.length > 0) {
+                    container.innerHTML = result.data.map(log => createLogEntry(log)).join('');
+                } else {
+                    container.innerHTML = '<div class="empty-state">暂无日志</div>';
+                }
+            } catch (error) {
+                console.error('获取转发日志失败:', error);
+            }
+        }
+
+        function createLogEntry(log) {
+            const isSuccess = log.status === '成功';
+            const cls = isSuccess ? 'success' : 'error';
+            return `
+                <div class="log-entry ${cls}">
+                    <div class="log-entry-header">
+                        <span class="log-time">${escapeHtml(log.formattedTime || '')}</span>
+                        <span>
+                            <span class="log-duration">${log.duration || 0}ms</span>
+                            <span class="tag" style="margin-left:8px">${escapeHtml(log.status)}</span>
+                        </span>
+                    </div>
+                    <div class="log-content-text">${escapeHtml(log.content || '')}</div>
+                    ${log.params ? '<div class="text-muted mt-8">参数: ' + escapeHtml(log.params) + '</div>' : ''}
+                    ${log.httpCode ? '<div class="text-muted">HTTP 状态: ' + log.httpCode + '</div>' : ''}
+                    ${log.errorMsg ? '<div class="log-error-msg">错误: ' + escapeHtml(log.errorMsg) + '</div>' : ''}
+                </div>
+            `;
+        }
+
+        async function clearLogs(type) {
+            if (!confirm('确定要清空该类型的所有日志吗？')) return;
+            try {
+                const response = await fetch('/monitor/api/clear/' + type, { method: 'POST' });
+                const result = await response.json();
+                if (result.code === 0) {
+                    showToast(result.message, 'success');
+                    if (type === 'sql') {
+                        document.getElementById('sqlLogs').innerHTML = '<div class="empty-state">暂无日志</div>';
+                        document.getElementById('sqlCount').textContent = '0';
+                    } else {
+                        document.getElementById('proxyLogs').innerHTML = '<div class="empty-state">暂无日志</div>';
+                        document.getElementById('proxyCount').textContent = '0';
+                    }
+                }
+            } catch (error) {
+                showToast('清空失败', 'error');
+            }
+        }
+
+        // === Config ===
+
+        async function loadConfigData() {
+            try {
+                const response = await fetch('/monitor/api/config');
+                const result = await response.json();
+                configData = result.data;
+                renderConfigPage();
+            } catch (error) {
+                console.error('获取配置失败:', error);
+                showToast('加载配置失败', 'error');
+            }
+        }
+
+        function renderConfigPage() {
+            if (!configData) return;
+
+            if (configData.cloud) {
+                document.getElementById('cfgWsUrl').value = configData.cloud.websocketUrl || '';
+                document.getElementById('cfgApiUrl').value = configData.cloud.apiBaseUrl || '';
+                document.getElementById('cfgAppId').value = configData.cloud.appId || '';
+                document.getElementById('cfgSecretKey').value = '';
+            }
+
+            if (configData.mysql) {
+                renderMysqlSources(configData.mysql);
+            }
+            if (configData.redis) {
+                renderRedisSources(configData.redis);
+            }
+            if (configData.mongodb) {
+                renderMongoSources(configData.mongodb);
+            }
+            if (configData.proxyHeaders) {
+                renderProxyHeaders(configData.proxyHeaders);
+            }
+            if (configData.logPersistence) {
+                renderLogPersistenceConfig(configData.logPersistence);
+            }
+        }
+
+        function renderLogPersistenceConfig(lp) {
+            document.getElementById('logPersistEnabled').checked = lp.enabled || false;
+            document.getElementById('logSqlPath').value = lp.sqlLogPath || 'logs/sql/';
+            document.getElementById('logProxyPath').value = lp.proxyLogPath || 'logs/proxy/';
+            document.getElementById('logMaxFileSize').value = lp.maxFileSizeMb || 100;
+            document.getElementById('logRetainDays').value = lp.retainDays || 30;
+        }
+
+        async function saveLogPersistence() {
+            const config = {
+                enabled: document.getElementById('logPersistEnabled').checked,
+                sqlLogPath: document.getElementById('logSqlPath').value,
+                proxyLogPath: document.getElementById('logProxyPath').value,
+                maxFileSizeMb: parseInt(document.getElementById('logMaxFileSize').value),
+                retainDays: parseInt(document.getElementById('logRetainDays').value)
+            };
+            try {
+                const response = await fetch('/monitor/api/config/log-persistence', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const result = await response.json();
+                if (result.code === 0) {
+                    showToast(result.message, 'success');
+                } else {
+                    showToast(result.message || '保存失败', 'error');
+                }
+            } catch (error) {
+                showToast('保存失败', 'error');
+            }
+        }
+
+        // === MySQL ===
+
+        function renderMysqlSources(sources) {
+            const container = document.getElementById('mysqlSources');
+            if (!sources.length) {
+                container.innerHTML = '<div class="empty-state">暂无配置，点击右上角「新增」按钮添加</div>';
+                return;
+            }
+            container.innerHTML = sources.map(function(s, i) {
+                return `
+                <div class="ds-block">
+                    <div class="ds-block-header">
+                        <div class="ds-block-title">数据源 #${i + 1}</div>
+                        <button class="btn btn-link btn-sm" onclick="removeMysqlSource(${i})">删除</button>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-item">
+                            <label class="form-label">AppId</label>
+                            <input type="text" class="form-control mysql-appId" value="${escapeHtml(s.appId || '')}">
+                        </div>
+                        <div class="form-item">
+                            <label class="form-label">连接 URL</label>
+                            <input type="text" class="form-control mysql-url" value="${escapeHtml(s.url || '')}">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-item">
+                            <label class="form-label">用户名</label>
+                            <input type="text" class="form-control mysql-username" value="${escapeHtml(s.username || '')}">
+                        </div>
+                        <div class="form-item">
+                            <label class="form-label">密码</label>
+                            <input type="password" class="form-control mysql-password" value="" placeholder="留空不修改">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-item">
+                            <label class="form-label">初始连接数</label>
+                            <input type="number" class="form-control mysql-initialSize" value="${s.initialSize || 5}">
+                        </div>
+                        <div class="form-item">
+                            <label class="form-label">最大连接数</label>
+                            <input type="number" class="form-control mysql-maxActive" value="${s.maxActive || 20}">
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function addMysqlSource() {
+            if (!configData) configData = { mysql: [], redis: [], mongodb: [], proxyHeaders: [] };
+            if (!configData.mysql) configData.mysql = [];
+            configData.mysql.push({ appId: '', url: '', username: '', password: '', initialSize: 5, maxActive: 20 });
+            renderMysqlSources(configData.mysql);
+        }
+
+        function removeMysqlSource(index) {
+            if (!confirm('确定要删除该数据源吗？')) return;
+            configData.mysql.splice(index, 1);
+            renderMysqlSources(configData.mysql);
+        }
+
+        async function saveMysqlConfig() {
+            const items = document.querySelectorAll('#mysqlSources .ds-block');
+            const list = [];
+            items.forEach(function(item) {
+                list.push({
+                    appId: item.querySelector('.mysql-appId').value,
+                    url: item.querySelector('.mysql-url').value,
+                    username: item.querySelector('.mysql-username').value,
+                    password: item.querySelector('.mysql-password').value,
+                    initialSize: parseInt(item.querySelector('.mysql-initialSize').value) || 5,
+                    maxActive: parseInt(item.querySelector('.mysql-maxActive').value) || 20
+                });
+            });
+            try {
+                const response = await fetch('/monitor/api/config/mysql', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(list)
+                });
+                const result = await response.json();
+                if (result.code === 0) {
+                    showToast(result.message, 'success');
+                } else {
+                    showToast(result.message || '保存失败', 'error');
+                }
+            } catch (error) {
+                showToast('保存失败', 'error');
+            }
+        }
+
+        // === Redis ===
+
+        function renderRedisSources(sources) {
+            const container = document.getElementById('redisSources');
+            if (!sources.length) {
+                container.innerHTML = '<div class="empty-state">暂无配置，点击右上角「新增」按钮添加</div>';
+                return;
+            }
+            container.innerHTML = sources.map(function(s, i) {
+                return `
+                <div class="ds-block">
+                    <div class="ds-block-header">
+                        <div class="ds-block-title">数据源 #${i + 1}</div>
+                        <button class="btn btn-link btn-sm" onclick="removeRedisSource(${i})">删除</button>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-item">
+                            <label class="form-label">AppId</label>
+                            <input type="text" class="form-control redis-appId" value="${escapeHtml(s.appId || '')}">
+                        </div>
+                        <div class="form-item">
+                            <label class="form-label">主机地址</label>
+                            <input type="text" class="form-control redis-host" value="${escapeHtml(s.host || '')}">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-item">
+                            <label class="form-label">端口</label>
+                            <input type="number" class="form-control redis-port" value="${s.port || 6379}">
+                        </div>
+                        <div class="form-item">
+                            <label class="form-label">密码</label>
+                            <input type="password" class="form-control redis-password" value="" placeholder="留空不修改">
+                        </div>
+                    </div>
+                    <div class="form-item">
+                        <label class="form-label">数据库</label>
+                        <input type="number" class="form-control redis-database" value="${s.database || 0}">
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function addRedisSource() {
+            if (!configData) configData = { mysql: [], redis: [], mongodb: [], proxyHeaders: [] };
+            if (!configData.redis) configData.redis = [];
+            configData.redis.push({ appId: '', host: '', port: 6379, password: '', database: 0 });
+            renderRedisSources(configData.redis);
+        }
+
+        function removeRedisSource(index) {
+            if (!confirm('确定要删除该数据源吗？')) return;
+            configData.redis.splice(index, 1);
+            renderRedisSources(configData.redis);
+        }
+
+        async function saveRedisConfig() {
+            const items = document.querySelectorAll('#redisSources .ds-block');
+            const list = [];
+            items.forEach(function(item) {
+                list.push({
+                    appId: item.querySelector('.redis-appId').value,
+                    host: item.querySelector('.redis-host').value,
+                    port: parseInt(item.querySelector('.redis-port').value) || 6379,
+                    password: item.querySelector('.redis-password').value,
+                    database: parseInt(item.querySelector('.redis-database').value) || 0
+                });
+            });
+            try {
+                const response = await fetch('/monitor/api/config/redis', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(list)
+                });
+                const result = await response.json();
+                if (result.code === 0) {
+                    showToast(result.message, 'success');
+                } else {
+                    showToast(result.message || '保存失败', 'error');
+                }
+            } catch (error) {
+                showToast('保存失败', 'error');
+            }
+        }
+
+        // === MongoDB ===
+
+        function renderMongoSources(sources) {
+            const container = document.getElementById('mongoSources');
+            if (!sources.length) {
+                container.innerHTML = '<div class="empty-state">暂无配置，点击右上角「新增」按钮添加</div>';
+                return;
+            }
+            container.innerHTML = sources.map(function(s, i) {
+                return `
+                <div class="ds-block">
+                    <div class="ds-block-header">
+                        <div class="ds-block-title">数据源 #${i + 1}</div>
+                        <button class="btn btn-link btn-sm" onclick="removeMongoSource(${i})">删除</button>
+                    </div>
+                    <div class="form-item">
+                        <label class="form-label">AppId</label>
+                        <input type="text" class="form-control mongo-appId" value="${escapeHtml(s.appId || '')}">
+                    </div>
+                    <div class="form-item">
+                        <label class="form-label">连接 URI</label>
+                        <input type="text" class="form-control mongo-uri" value="" placeholder="mongodb://user:pass@host:port/db">
+                    </div>
+                    <div class="form-item">
+                        <label class="form-label">默认数据库</label>
+                        <input type="text" class="form-control mongo-database" value="${escapeHtml(s.database || '')}">
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function addMongoSource() {
+            if (!configData) configData = { mysql: [], redis: [], mongodb: [], proxyHeaders: [] };
+            if (!configData.mongodb) configData.mongodb = [];
+            configData.mongodb.push({ appId: '', uri: '', database: '' });
+            renderMongoSources(configData.mongodb);
+        }
+
+        function removeMongoSource(index) {
+            if (!confirm('确定要删除该数据源吗？')) return;
+            configData.mongodb.splice(index, 1);
+            renderMongoSources(configData.mongodb);
+        }
+
+        async function saveMongoConfig() {
+            const items = document.querySelectorAll('#mongoSources .ds-block');
+            const list = [];
+            items.forEach(function(item) {
+                list.push({
+                    appId: item.querySelector('.mongo-appId').value,
+                    uri: item.querySelector('.mongo-uri').value,
+                    database: item.querySelector('.mongo-database').value
+                });
+            });
+            try {
+                const response = await fetch('/monitor/api/config/mongodb', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(list)
+                });
+                const result = await response.json();
+                if (result.code === 0) {
+                    showToast(result.message, 'success');
+                } else {
+                    showToast(result.message || '保存失败', 'error');
+                }
+            } catch (error) {
+                showToast('保存失败', 'error');
+            }
+        }
+
+        // === Proxy Headers ===
+
+        function renderProxyHeaders(headers) {
+            const container = document.getElementById('proxyHeaderTags');
+            if (!headers || !headers.length) {
+                container.innerHTML = '<div class="text-muted">暂无配置</div>';
+                return;
+            }
+            container.innerHTML = headers.map(function(h) {
+                return '<span class="tag">' + escapeHtml(h) + '<span class="tag-close" onclick="removeProxyHeader(\'' + escapeHtml(h) + '\')">×</span></span>';
+            }).join('');
+        }
+
+        function addProxyHeader() {
+            if (!configData) configData = { proxyHeaders: [] };
+            if (!configData.proxyHeaders) configData.proxyHeaders = [];
+
+            const input = document.getElementById('proxyHeaderInput');
+            const value = input.value.trim();
+            if (!value) return;
+
+            if (configData.proxyHeaders.some(function(h) { return h.toLowerCase() === value.toLowerCase(); })) {
+                showToast('该请求头已存在', 'error');
+                input.value = '';
+                return;
+            }
+
+            configData.proxyHeaders.push(value);
+            input.value = '';
+            renderProxyHeaders(configData.proxyHeaders);
+        }
+
+        async function removeProxyHeader(headerName) {
+            if (!configData || !configData.proxyHeaders) return;
+            if (!confirm('确定要删除请求头 "' + headerName + '" 吗？')) return;
+            try {
+                const response = await fetch('/monitor/api/config/proxy-headers/' + encodeURIComponent(headerName), {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                if (result.code === 0) {
+                    configData.proxyHeaders = configData.proxyHeaders.filter(function(h) { return h !== headerName; });
+                    renderProxyHeaders(configData.proxyHeaders);
+                    showToast(result.message, 'success');
+                } else {
+                    showToast(result.message || '删除失败', 'error');
+                }
+            } catch (error) {
+                showToast('删除失败', 'error');
+            }
+        }
+
+        async function saveProxyHeaders() {
+            if (!configData) configData = { proxyHeaders: [] };
+            const headers = configData.proxyHeaders || [];
+            try {
+                const response = await fetch('/monitor/api/config/proxy-headers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(headers)
+                });
+                const result = await response.json();
+                if (result.code === 0) {
+                    showToast(result.message, 'success');
+                } else {
+                    showToast(result.message || '保存失败', 'error');
+                }
+            } catch (error) {
+                showToast('保存失败', 'error');
+            }
+        }
+
+        // === Cloud Config ===
+
+        async function saveCloudConfig() {
+            const config = {
+                websocketUrl: document.getElementById('cfgWsUrl').value,
+                appId: document.getElementById('cfgAppId').value,
+                secretKey: document.getElementById('cfgSecretKey').value,
+                apiBaseUrl: document.getElementById('cfgApiUrl').value
+            };
+            try {
+                const response = await fetch('/monitor/api/config/cloud', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const result = await response.json();
+                if (result.code === 0) {
+                    showToast(result.message, 'success');
+                } else {
+                    showToast(result.message || '保存失败', 'error');
+                }
+            } catch (error) {
+                showToast('保存失败', 'error');
+            }
+        }
+
+        // === Pool Management ===
+
+        async function reloadAllPools() {
+            if (!confirm('确定要重载所有连接池吗？这可能会短暂中断正在执行的请求。')) return;
+            try {
+                const response = await fetch('/monitor/api/config/reload', { method: 'POST' });
+                const result = await response.json();
+                if (result.code === 0) {
+                    showToast(result.message, 'success');
+                } else {
+                    showToast(result.message || '重载失败', 'error');
+                }
+            } catch (error) {
+                showToast('重载失败', 'error');
+            }
+        }
+
+        // === Init ===
+
+        function init() {
+            loadStats();
+            refreshConnectionStatus();
+            loadSqlLogs();
+            loadProxyLogs();
+
+            autoRefreshInterval = setInterval(function() {
+                if (!document.getElementById('autoRefresh').checked) return;
+                loadStats();
+                refreshConnectionStatus();
+                loadSqlLogs();
+                loadProxyLogs();
+            }, 3000);
+        }
+
+        init();
+    </script>
+</body>
+</html>

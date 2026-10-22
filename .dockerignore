@@ -1,0 +1,16 @@
+# 仅保留 Maven 产出的 jar 进入构建上下文
+target/*
+!target/*.jar
+
+.idea/
+*.iml
+.git/
+.gitignore
+logs/
+*.log
+*.md
+.env
+.env.*
+heg.sh
+docker-compose.yml
+*.tar

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!--
+      通过 springProperty 从 Spring 环境读取配置（对应 application.yml 的 heg.app-log.*），
+      这样 HEG_LOG_PATH / HEG_LOG_LEVEL / HEG_LOG_RETAIN_DAYS 环境变量才能真正生效。
+      注意: 不能直接用 ${LOG_PATH}，logback 只能解析自身的 property，读不到 Spring 环境变量。
+    -->
+    <springProperty scope="context" name="LOG_PATH" source="heg.app-log.path" defaultValue="/app/logs"/>
+    <springProperty scope="context" name="LOG_LEVEL" source="heg.app-log.level" defaultValue="INFO"/>
+    <springProperty scope="context" name="LOG_RETAIN_DAYS" source="heg.app-log.retain-days" defaultValue="30"/>
+
+    <property name="APP_NAME" value="heg"/>
+    <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{40} - %msg%n"/>
+
+    <!-- 控制台输出（docker logs 可见） -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 主日志文件（按天滚动拆分） -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/${APP_NAME}.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/${APP_NAME}-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>${LOG_RETAIN_DAYS}</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 错误日志单独输出（按天滚动拆分） -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/${APP_NAME}-error.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/${APP_NAME}-error-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>${LOG_RETAIN_DAYS}</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 应用日志级别 -->
+    <logger name="com.hiasoon.heg" level="${LOG_LEVEL}"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="ERROR_FILE"/>
+    </root>
+</configuration>

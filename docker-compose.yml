@@ -1,0 +1,92 @@
+services:
+  heg:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hiasoon-edge-gateway:1.0.0
+    container_name: heg
+    restart: unless-stopped
+    ports:
+      # 左侧为宿主机端口(可在 .env 中通过 HEG_SERVER_PORT 修改)
+      # 容器内部固定监听 9000，不随 HEG_SERVER_PORT 变化
+      - "${HEG_SERVER_PORT:-9000}:9000"
+    environment:
+      # ========== 云端连接 ==========
+      HEG_WEBSOCKET_URL: ${HEG_WEBSOCKET_URL:-wss://api.hiasoon.com/ws}
+      HEG_APP_ID: ${HEG_APP_ID:?HEG_APP_ID 未配置}
+      HEG_SECRET_KEY: ${HEG_SECRET_KEY:?HEG_SECRET_KEY 未配置}
+      HEG_API_BASE_URL: ${HEG_API_BASE_URL:-https://api.hiasoon.com}
+
+      # ========== 运行时配置存储 ==========
+      HEG_CONFIG_PERSISTENCE_TYPE: ${HEG_CONFIG_PERSISTENCE_TYPE:-file}
+      HEG_CONFIG_FILE_PATH: ${HEG_CONFIG_FILE_PATH:-/app/data/heg-runtime-config.yml}
+
+      # ========== 应用运行日志(logback) ==========
+      # 注意: 修改 HEG_LOG_PATH 需同步修改下方 volumes 的容器内挂载路径，否则日志不会落盘
+      HEG_LOG_PATH: ${HEG_LOG_PATH:-/app/logs}
+      HEG_LOG_LEVEL: ${HEG_LOG_LEVEL:-INFO}
+
+      # ========== 业务操作日志(SQL/Proxy)持久化 ==========
+      HEG_LOG_PERSISTENCE_ENABLED: ${HEG_LOG_PERSISTENCE_ENABLED:-false}
+      HEG_SQL_LOG_PATH: ${HEG_SQL_LOG_PATH:-/app/logs/sql/}
+      HEG_PROXY_LOG_PATH: ${HEG_PROXY_LOG_PATH:-/app/logs/proxy/}
+      HEG_LOG_MAX_FILE_SIZE_MB: ${HEG_LOG_MAX_FILE_SIZE_MB:-100}
+      HEG_LOG_RETAIN_DAYS: ${HEG_LOG_RETAIN_DAYS:-30}
+
+      # ========== 透传请求头(逗号分隔) ==========
+      HEG_PROXY_HEADERS: ${HEG_PROXY_HEADERS:-X-Custom-Header,X-Request-Id,X-User-Id}
+
+      # ========== MySQL ==========
+      # app-id 留空则自动使用 HEG_APP_ID
+      HEG_MYSQL_APP_ID: ${HEG_MYSQL_APP_ID:-${HEG_APP_ID}}
+      HEG_MYSQL_URL: ${HEG_MYSQL_URL:-}
+      HEG_MYSQL_USERNAME: ${HEG_MYSQL_USERNAME:-root}
+      HEG_MYSQL_PASSWORD: ${HEG_MYSQL_PASSWORD:-}
+      HEG_MYSQL_INITIAL_SIZE: ${HEG_MYSQL_INITIAL_SIZE:-5}
+      HEG_MYSQL_MAX_ACTIVE: ${HEG_MYSQL_MAX_ACTIVE:-20}
+
+      # ========== Redis (host 留空则不启用，app-id 留空则使用 HEG_APP_ID) ==========
+      HEG_REDIS_APP_ID: ${HEG_REDIS_APP_ID:-${HEG_APP_ID}}
+      HEG_REDIS_HOST: ${HEG_REDIS_HOST:-}
+      HEG_REDIS_PORT: ${HEG_REDIS_PORT:-6379}
+      HEG_REDIS_PASSWORD: ${HEG_REDIS_PASSWORD:-}
+      HEG_REDIS_DATABASE: ${HEG_REDIS_DATABASE:-0}
+
+      # ========== MongoDB (uri 留空则不启用，app-id 留空则使用 HEG_APP_ID) ==========
+      HEG_MONGO_APP_ID: ${HEG_MONGO_APP_ID:-${HEG_APP_ID}}
+      HEG_MONGO_URI: ${HEG_MONGO_URI:-}
+      HEG_MONGO_DATABASE: ${HEG_MONGO_DATABASE:-}
+
+      # ========== JVM 参数 ==========
+      JAVA_OPTS: ${JAVA_OPTS:--Xms256m -Xmx512m -XX:+UseG1GC}
+
+    volumes:
+      # 运行时配置持久化(热更新配置存储)，对应 HEG_CONFIG_FILE_PATH 所在目录
+      - heg-config:/app/data
+      # 应用日志 + 业务操作日志持久化，对应 HEG_LOG_PATH 所在目录
+      - heg-logs:/app/logs
+      # 如需挂载宿主机目录而非命名卷，可替换为:
+      # - ./data:/app/data
+      # - ./logs:/app/logs
+      # 如需外部配置文件覆盖，取消注释:
+      # - ./config/application.yml:/app/config/application.yml:ro
+
+    healthcheck:
+      # 项目未引入 actuator，健康检查使用应用自身的 /heg/test/health 端点
+      test: ["CMD", "curl", "-f", "http://localhost:9000/heg/test/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+volumes:
+  heg-config:
+    driver: local
+  heg-logs:
+    driver: local
