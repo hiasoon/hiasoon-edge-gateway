@@ -9,7 +9,7 @@
 | 属性 | 值 |
 |------|-----|
 | 项目名称 | heg-verify |
-| 版本 | 1.0.0 |
+| 版本 | 1.0.1 |
 | 语言 | Java 1.8 |
 | 框架 | Spring Boot 2.7.18 |
 | 端口 | 9000 |
@@ -415,7 +415,7 @@ mvn spring-boot:run
 
 ```bash
 mvn clean package -DskipTests
-java -jar target/hiasoon-edge-gateway-1.0.0.jar
+java -jar target/hiasoon-edge-gateway-1.0.1.jar
 ```
 
 ---
@@ -424,6 +424,7 @@ java -jar target/hiasoon-edge-gateway-1.0.0.jar
 
 | 版本 | 日期 | 变更说明 |
 |------|------|----------|
+| 1.0.1 | 2026-11-09 | 修复云端 wss 证书不校验问题（默认校验证书链与主机名，私有 CA 可配 trust-store）；Redis 命令补齐至 107 条；MongoDB 新增 CREATE_COLLECTION 与 upsert；修正边缘侧 MongoTemplate 注册缺失 |
 | 1.0.0 | 2026-06-30 | 初始版本，支持MySQL/Redis/MongoDB操作转发和HTTP转发 |
 
 ---

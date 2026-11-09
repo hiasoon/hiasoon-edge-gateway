@@ -17,6 +17,7 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.websocketx.*;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.handler.timeout.IdleStateHandler;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +25,14 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.TrustManagerFactory;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.net.URI;
+import java.security.KeyStore;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -73,7 +81,43 @@ public class HegWebSocketClient {
             return;
         }
         log.info("正在初始化WebSocket连接（异步）...");
+        validateTlsConfig();
         startConnectThread(connectionGeneration.incrementAndGet(), "heg-ws-client");
+    }
+
+    /**
+     * 启动期校验 TLS 配置，避免配置错误拖到连接阶段才以「连接失败 + 无限重连」的形式暴露。
+     *
+     * <p>这里只做静态检查（文件是否存在、URL scheme 是否为明文），不发起 TLS 握手。
+     */
+    private void validateTlsConfig() {
+        HegConfig.Tls tls = hegConfig.getCloud().getTls();
+        if (tls == null) {
+            return;
+        }
+        String wsUrl = hegConfig.getCloud().getWebsocketUrl();
+        boolean wss = wsUrl != null && wsUrl.toLowerCase().startsWith("wss://");
+        if (!wss && wsUrl != null) {
+            log.warn("云端地址为明文 {}", wsUrl);
+            log.warn("HEG 与云端之间的报文（含下发的 SQL、业务数据与握手 token）不会被加密，"
+                    + "生产环境应使用 wss://");
+        }
+        if (tls.isInsecureSkipVerify()) {
+            log.error("==================================================================");
+            log.error("【严重安全风险】heg.cloud.tls.insecure-skip-verify=true");
+            log.error("云端 TLS 证书将不做任何校验，链路可被中间人攻击解密与篡改。");
+            log.error("该开关仅允许用于自签证书的临时联调环境，生产环境必须关闭。");
+            log.error("==================================================================");
+        }
+        String trustStore = tls.getTrustStore();
+        if (trustStore != null && !trustStore.trim().isEmpty()) {
+            File store = new File(trustStore.trim());
+            if (!store.isFile()) {
+                throw new IllegalStateException(
+                        "heg.cloud.tls.trust-store 指向的文件不存在: " + store.getAbsolutePath()
+                                + "。请检查挂载路径，或清空该项以使用 JDK 默认信任库。");
+            }
+        }
     }
 
     @PreDestroy
@@ -178,11 +222,13 @@ public class HegWebSocketClient {
             boolean ssl = "wss".equalsIgnoreCase(scheme);
             final SslContext sslCtx;
             if (ssl) {
-                sslCtx = SslContextBuilder.forClient()
-                        .trustManager(InsecureTrustManagerFactory.INSTANCE).build();
+                sslCtx = buildSslContext();
             } else {
                 sslCtx = null;
             }
+            // 仅在启用真实校验时设置主机名校验；跳过校验模式下设置该参数会使自签证书
+            // 因 CN/SAN 不匹配而握手失败，与"跳过校验"的语义冲突
+            final boolean verifyHostname = ssl && !isInsecureSkipVerify();
 
             final WebSocketClientHandshaker handshaker = WebSocketClientHandshakerFactory.newHandshaker(
                     uri, WebSocketVersion.V13, null, true, new DefaultHttpHeaders());
@@ -197,7 +243,7 @@ public class HegWebSocketClient {
                         protected void initChannel(SocketChannel ch) {
                             ChannelPipeline p = ch.pipeline();
                             if (sslCtx != null) {
-                                p.addLast(sslCtx.newHandler(ch.alloc(), host, port));
+                                p.addLast(newSslHandler(sslCtx, ch, host, port, verifyHostname));
                             }
                             p.addLast(new HttpClientCodec());
                             p.addLast(new HttpObjectAggregator(8192));
@@ -243,6 +289,13 @@ public class HegWebSocketClient {
             }
         } catch (Exception e) {
             if (generation == connectionGeneration.get()) {
+                if (e instanceof IllegalStateException) {
+                    // 配置类错误（如 trust-store 路径不存在）：重连也不会成功，
+                    // 直接终止重试，避免 1→60s 的无限重连把根因淹没在日志里
+                    log.error("WebSocket连接失败（配置错误，已停止重试）: {}", e.getMessage());
+                    logCollector.updateConnectionStatus(CONNECTION_NAME, false, "配置错误: " + e.getMessage());
+                    return;
+                }
                 log.error("WebSocket连接失败", e);
                 logCollector.updateConnectionStatus(CONNECTION_NAME, false, "连接失败: " + e.getMessage());
                 scheduleReconnect(generation);
@@ -258,6 +311,87 @@ public class HegWebSocketClient {
                 }
             }
         }
+    }
+
+    /**
+     * 构建云端连接的 TLS 上下文。
+     *
+     * <p>默认使用 JDK 内置信任库（cacerts），因此 Let's Encrypt 等公共 CA 签发的
+     * 证书无需任何配置即可通过校验；私有 CA 场景通过 {@code heg.cloud.tls.trust-store}
+     * 指定 PEM 证书或 JKS/PKCS12 密钥库。
+     */
+    private SslContext buildSslContext() throws Exception {
+        HegConfig.Tls tls = hegConfig.getCloud().getTls();
+        if (tls == null) {
+            tls = new HegConfig.Tls();
+        }
+        SslContextBuilder builder = SslContextBuilder.forClient();
+        if (tls.isInsecureSkipVerify()) {
+            builder.trustManager(InsecureTrustManagerFactory.INSTANCE);
+            return builder.build();
+        }
+        String trustStorePath = tls.getTrustStore();
+        if (trustStorePath == null || trustStorePath.trim().isEmpty()) {
+            log.info("TLS 使用 JDK 默认信任库（公共 CA 证书，如 Let's Encrypt）");
+            return builder.build();
+        }
+        File store = new File(trustStorePath.trim());
+        if (!store.isFile()) {
+            // 配置错误必须阻断：静默退回默认信任库会让私有 CA 场景变成
+            // "连不上又看不出原因"，而静默信任全部则等于没修
+            throw new IllegalStateException(
+                    "heg.cloud.tls.trust-store 指向的文件不存在: " + store.getAbsolutePath());
+        }
+        if (isKeyStoreFile(store.getName())) {
+            builder.trustManager(loadTrustManagerFactory(store, tls.getTrustStorePassword()));
+        } else {
+            builder.trustManager(store);
+        }
+        log.info("TLS 信任库已加载: {}", store.getAbsolutePath());
+        return builder.build();
+    }
+
+    private boolean isInsecureSkipVerify() {
+        HegConfig.Tls tls = hegConfig.getCloud().getTls();
+        return tls != null && tls.isInsecureSkipVerify();
+    }
+
+    /**
+     * 创建 {@link SslHandler}，并在启用真实校验时打开主机名校验。
+     *
+     * <p>只做信任链校验是不够的：攻击者可以用任意一个合法 CA 为其自有域名申请证书，
+     * 这类证书同样能通过信任链检查。必须显式设置
+     * {@code endpointIdentificationAlgorithm=HTTPS}，才会校验证书 CN/SAN 与目标域名一致，
+     * 否则「替换为另一个合法证书」的中间人攻击依然成立。
+     */
+    private static SslHandler newSslHandler(SslContext sslCtx, Channel ch, String host, int port,
+                                            boolean verifyHostname) {
+        SSLEngine engine = sslCtx.newEngine(ch.alloc(), host, port);
+        if (verifyHostname) {
+            SSLParameters params = engine.getSSLParameters();
+            params.setEndpointIdentificationAlgorithm("HTTPS");
+            engine.setSSLParameters(params);
+        }
+        return new SslHandler(engine);
+    }
+
+    private static boolean isKeyStoreFile(String name) {
+        String lower = name.toLowerCase();
+        return lower.endsWith(".jks") || lower.endsWith(".p12")
+                || lower.endsWith(".pfx") || lower.endsWith(".pkcs12");
+    }
+
+    private static TrustManagerFactory loadTrustManagerFactory(File store, String password) throws Exception {
+        KeyStore keyStore = store.getName().toLowerCase().endsWith(".jks")
+                ? KeyStore.getInstance(KeyStore.getDefaultType())
+                : KeyStore.getInstance("PKCS12");
+        char[] pwd = (password == null || password.isEmpty()) ? null : password.toCharArray();
+        try (InputStream in = new FileInputStream(store)) {
+            keyStore.load(in, pwd);
+        }
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        tmf.init(keyStore);
+        return tmf;
     }
 
     public void onChannelActive(int generation) {

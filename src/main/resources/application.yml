@@ -23,6 +23,16 @@ heg:
     app-id: ${HEG_APP_ID:}
     secret-key: ${HEG_SECRET_KEY:}
     api-base-url: ${HEG_API_BASE_URL:https://api.hiasoon.com}
+    # ---------- 云端 TLS 校验 ----------
+    # 默认使用 JDK 内置信任库，Let's Encrypt 等公共 CA 签发的证书无需任何配置。
+    # 仅当云端使用私有 CA / 自签证书时才需要指定 trust-store。
+    tls:
+      # PEM 证书（或 CA 证书链）或 JKS / PKCS12 密钥库路径；留空使用 JDK 默认信任库
+      trust-store: ${HEG_TLS_TRUST_STORE:}
+      # 仅 JKS / PKCS12 需要；PEM 忽略
+      trust-store-password: ${HEG_TLS_TRUST_STORE_PASSWORD:}
+      # 跳过证书校验：仅限自签证书的临时联调，生产必须为 false
+      insecure-skip-verify: ${HEG_TLS_INSECURE_SKIP_VERIFY:false}
 
   # ---------- 应用运行日志(logback输出，按天滚动) ----------
   app-log:

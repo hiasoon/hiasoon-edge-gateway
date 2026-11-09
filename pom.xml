@@ -13,7 +13,7 @@
 
     <groupId>com.hiasoon</groupId>
     <artifactId>hiasoon-edge-gateway</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <packaging>jar</packaging>
     <name>HEG</name>
     <description>面向边缘节点的数据访问网关，通过 WebSocket 接收云端指令，在本地执行 MySQL / Redis / MongoDB 操作或 HTTP 转发</description>

@@ -82,7 +82,7 @@ export HEG_WEBSOCKET_URL="wss://api.hiasoon.com/ws"
 export HEG_APP_ID="<您的APPID>"
 export HEG_SECRET_KEY="<您的SecretKey>"
 
-java -jar target/hiasoon-edge-gateway-1.0.0.jar
+java -jar target/hiasoon-edge-gateway-1.0.1.jar
 ```
 
 Windows 环境在 PowerShell 中使用 `$env:HEG_APP_ID="..."` 设置变量；也可以直接编辑 `src/main/resources/application.yml`（请勿提交真实凭据）。
@@ -93,12 +93,12 @@ Windows 环境在 PowerShell 中使用 `$env:HEG_APP_ID="..."` 设置变量；�
 
 ```bash
 ./heg.sh build            # 打包 + 构建镜像 + 导出 tar
-docker load -i hiasoon-edge-gateway-1.0.0.tar
+docker load -i hiasoon-edge-gateway-1.0.1.tar
 docker run -d --name heg --restart unless-stopped -p 9000:9000 \
   --env-file .env \
   -v /opt/heg/config:/app/config \
   -v /opt/heg/logs:/app/logs \
-  hiasoon-edge-gateway:1.0.0
+  hiasoon/hiasoon-edge-gateway:1.0.1
 ```
 
 方式二：Docker Compose
@@ -195,7 +195,8 @@ hiasoon-edge-gateway/
 - **凭据管理**：`HEG_APP_ID`、`HEG_SECRET_KEY`、数据库口令等一律通过环境变量注入，不要写入 `application.yml`、代码或脚本并提交。
 - **接口鉴权**：`/monitor` 与 `/heg/test/*` 默认不提供内置认证，仅应在内网或受控网络暴露；如需公网访问，请置于反向代理后并增加认证与访问控制。
 - **日志内容**：开启日志持久化可能记录 SQL 语句与参数，请评估合规要求后再启用。
-- **传输安全**：生产环境请使用 `wss://`，避免明文传输密钥与业务数据。
+- **传输安全**：生产环境必须使用 `wss://`。客户端默认使用 JDK 内置信任库校验云端证书，并校验证书域名与目标主机一致；由公共 CA（如 Let's Encrypt）签发的证书无需任何配置。若云端使用私有 CA 或自签证书，通过 `HEG_TLS_TRUST_STORE` 指定信任库（PEM 或 JKS/PKCS12）。
+  `HEG_TLS_INSECURE_SKIP_VERIFY=true` 会关闭全部证书校验，<b>仅限临时联调</b>，生产环境严禁开启。
 - **漏洞反馈**：请勿通过公开 Issue 提交安全问题，直接联系维护者。
 
 ## 参与贡献

@@ -15,7 +15,7 @@
 #   image  : Docker 20.10+（守护进程可用）
 #
 # 可选环境变量：
-#   IMAGE_NAME  镜像名，默认 hiasoon-edge-gateway
+#   IMAGE_NAME  镜像名，默认 hiasoon/hiasoon-edge-gateway
 #   IMAGE_TAG   镜像标签，默认读取 pom.xml 中的项目版本
 #############################################
 
@@ -30,10 +30,11 @@ PROJECT_VERSION="$(
         | head -n1
 )" || true
 
-IMAGE_NAME="${IMAGE_NAME:-hiasoon-edge-gateway}"
-IMAGE_TAG="${IMAGE_TAG:-${PROJECT_VERSION:-1.0.0}}"
+IMAGE_NAME="${IMAGE_NAME:-hiasoon/hiasoon-edge-gateway}"
+IMAGE_TAG="${IMAGE_TAG:-${PROJECT_VERSION:-1.0.1}}"
 IMAGE_REF="${IMAGE_NAME}:${IMAGE_TAG}"
-IMAGE_TAR="${SCRIPT_DIR}/${IMAGE_NAME}-${IMAGE_TAG}.tar"
+# 镜像名含命名空间（如 hiasoon/xxx）时，tar 包文件名只取末段，避免生成子目录路径
+IMAGE_TAR="${SCRIPT_DIR}/$(basename "${IMAGE_NAME}")-${IMAGE_TAG}.tar"
 
 # ==========================================
 # 日志输出
@@ -60,7 +61,7 @@ HEG 边缘网关 构建脚本
 产物: $(basename "${IMAGE_TAR}")
 
 可选环境变量:
-  IMAGE_NAME  镜像名，默认 hiasoon-edge-gateway
+  IMAGE_NAME  镜像名，默认 hiasoon/hiasoon-edge-gateway
   IMAGE_TAG   镜像标签，默认取自 pom.xml
 EOF
 }
@@ -132,7 +133,7 @@ image(){
 
     info "==================== 构建镜像 ===================="
     info "镜像名称：${IMAGE_REF}"
-    docker build -t "${IMAGE_REF}" "${SCRIPT_DIR}"
+    docker build -t "${IMAGE_REF}" --build-arg APP_VERSION="${IMAGE_TAG}" "${SCRIPT_DIR}"
 
     info "导出镜像 tar 包（不压缩）..."
     docker save -o "${IMAGE_TAR}" "${IMAGE_REF}"
@@ -162,7 +163,7 @@ clean(){
     info "清理 Maven 构建产物 ..."
     rm -rf "${SCRIPT_DIR}/target"
     info "清理镜像 tar 包 ..."
-    rm -f "${SCRIPT_DIR}/${IMAGE_NAME}-"*.tar
+    rm -f "${SCRIPT_DIR}/$(basename "${IMAGE_NAME}")-"*.tar
     info "清理完成"
 }
 

@@ -1,6 +1,6 @@
 # HEG 边缘网关 部署文档
 
-> 适用版本：HEG 1.0.0
+> 适用版本：HEG 1.0.1
 >
 > 本文档分两部分：
 > - **第一部分**：在构建机（CentOS 7）上如何从代码构建出 **Docker 镜像 tar 包**
@@ -15,14 +15,14 @@
 │ 构建机（我方可访问外网/CentOS 7）                              │
 │   1. 获取源码      git clone 或直接使用已有代码                │
 │   2. Maven 打包    mvn clean package → target/*.jar           │
-│   3. 构建镜像      docker build -t hiasoon-edge-gateway:1.0.0 .           │
-│   4. 导出镜像包    docker save → hiasoon-edge-gateway-1.0.0.tar                      │
+│   3. 构建镜像      docker build -t hiasoon/hiasoon-edge-gateway:1.0.1 .           │
+│   4. 导出镜像包    docker save → hiasoon-edge-gateway-1.0.1.tar                      │
 └──────────────────────────────────────────────────────────────┘
                               │  上传 tar 包（未压缩）
                               ↓
 ┌──────────────────────────────────────────────────────────────┐
 │ 客户服务器（Docker 环境，无需 Java / Maven / 源码）             │
-│   5. 加载镜像      docker load -i hiasoon-edge-gateway-1.0.0.tar                     │
+│   5. 加载镜像      docker load -i hiasoon-edge-gateway-1.0.1.tar                     │
 │   6. 准备配置      config/application.yml（改中台地址/APPID/库）│
 │   7. 启动容器      docker run -d --name heg ...        │
 │   8. 验证          docker logs -f heg / 健康检查        │
@@ -76,10 +76,10 @@ chmod +x heg.sh
 
 ```
 <项目根目录>/
-└── hiasoon-edge-gateway-1.0.0.tar   # Docker 镜像包（未压缩），与 heg.sh 同级
+└── hiasoon-edge-gateway-1.0.1.tar   # Docker 镜像包（未压缩），与 heg.sh 同级
 ```
 
-镜像命名规则：`hiasoon-edge-gateway:<版本>`，版本自动取自 `pom.xml`，默认 `1.0.0`。
+镜像命名规则：`hiasoon/hiasoon-edge-gateway:<版本>`，版本自动取自 `pom.xml`，默认 `1.0.1`。
 导出 tar 包命名为 `hiasoon-edge-gateway-<版本>.tar`，每次构建覆盖更新。
 如需覆盖，可在执行时指定环境变量：`IMAGE_NAME=xxx IMAGE_TAG=1.2.3 ./heg.sh build`。
 
@@ -87,7 +87,7 @@ chmod +x heg.sh
 
 ```bash
 docker images | grep hiasoon-edge-gateway
-docker inspect hiasoon-edge-gateway:1.0.0 | grep -i version
+docker inspect hiasoon/hiasoon-edge-gateway:1.0.1 | grep -i version
 ```
 
 ---
@@ -106,26 +106,26 @@ docker inspect hiasoon-edge-gateway:1.0.0 | grep -i version
 
 ## 2.2 第一步：上传并加载镜像
 
-将 `hiasoon-edge-gateway-1.0.0.tar` 上传到服务器（例如 `/opt/heg/`），然后：
+将 `hiasoon-edge-gateway-1.0.1.tar` 上传到服务器（例如 `/opt/heg/`），然后：
 
 ```bash
 cd /opt/heg
 
 # 加载镜像（tar 包未压缩，无需 gunzip）
-docker load -i hiasoon-edge-gateway-1.0.0.tar
+docker load -i hiasoon-edge-gateway-1.0.1.tar
 ```
 
 **加载成功的输出示例：**
 
 ```
-Loaded image: hiasoon-edge-gateway:1.0.0
+Loaded image: hiasoon/hiasoon-edge-gateway:1.0.1
 ```
 
 **验证：**
 
 ```bash
 docker images | grep hiasoon-edge-gateway
-# hiasoon-edge-gateway   1.0.0   3f2a1b9c8d7e   2 minutes ago   289MB
+# hiasoon/hiasoon-edge-gateway   1.0.1   3f2a1b9c8d7e   2 minutes ago   289MB
 ```
 
 > 说明：`docker load` 只是把镜像导入到本机镜像库，**此时还没有启动任何服务**。
@@ -206,7 +206,7 @@ docker run -d \
   -v /opt/heg/config/application.yml:/app/config/application.yml \
   -v /opt/heg/logs:/app/logs \
   --add-host=host.docker.internal:host-gateway \
-  hiasoon-edge-gateway:1.0.0
+  hiasoon/hiasoon-edge-gateway:1.0.1
 ```
 
 **参数说明：**
@@ -220,7 +220,7 @@ docker run -d \
 | `-v /opt/heg/config/application.yml:/app/config/application.yml` | 挂载配置文件（覆盖镜像内置默认值），改完 `docker restart heg` 即生效 |
 | `-v /opt/heg/logs:/app/logs` | 挂载日志目录，便于在宿主机查看 |
 | `--add-host=host.docker.internal:host-gateway` | 让容器内可通过 `host.docker.internal` 访问宿主机 |
-| `hiasoon-edge-gateway:1.0.0` | 镜像名:标签（与 `docker load` 导入的一致） |
+| `hiasoon/hiasoon-edge-gateway:1.0.1` | 镜像名:标签（与 `docker load` 导入的一致） |
 
 > **Windows 客户机**：PowerShell 中换行符为 `` ` ``，或把命令写成一行；
 > 挂载路径改为 `-v D:\heg\config\application.yml:/app/config/application.yml`。
@@ -301,19 +301,19 @@ docker run -d --name heg --restart always \
   -v /opt/heg/config/application.yml:/app/config/application.yml \
   -v /opt/heg/logs:/app/logs \
   --add-host=host.docker.internal:host-gateway \
-  hiasoon-edge-gateway:1.0.1
+  hiasoon/hiasoon-edge-gateway:1.0.1
 ```
 
 **回滚：** 直接按上面的方式用旧镜像 tag 重新启动容器即可（旧镜像不要删除）：
 
 ```bash
-docker run -d --name heg ... hiasoon-edge-gateway:1.0.0
+docker run -d --name heg ... hiasoon/hiasoon-edge-gateway:1.0.1
 ```
 
 **清理旧镜像：**
 
 ```bash
-docker rmi hiasoon-edge-gateway:1.0.0        # 确认无容器使用后再删除
+docker rmi hiasoon/hiasoon-edge-gateway:1.0.1        # 确认无容器使用后再删除
 ```
 
 ---
@@ -342,7 +342,7 @@ docker rmi hiasoon-edge-gateway:1.0.0        # 确认无容器使用后再删除
 确认上传过程完整（比对文件大小与 md5）：
 
 ```bash
-md5sum hiasoon-edge-gateway-1.0.0.tar      # 与构建机输出对比
+md5sum hiasoon-edge-gateway-1.0.1.tar      # 与构建机输出对比
 ```
 
 ### Q4：端口 9000 被占用
@@ -352,7 +352,7 @@ md5sum hiasoon-edge-gateway-1.0.0.tar      # 与构建机输出对比
 ### Q5：如何调整 JVM 内存
 
 ```bash
-docker run -d ... -e JAVA_OPTS="-Xms512m -Xmx1024m -Dfile.encoding=UTF-8" hiasoon-edge-gateway:1.0.0
+docker run -d ... -e JAVA_OPTS="-Xms512m -Xmx1024m -Dfile.encoding=UTF-8" hiasoon/hiasoon-edge-gateway:1.0.1
 ```
 
 ### Q6：修改配置后不生效

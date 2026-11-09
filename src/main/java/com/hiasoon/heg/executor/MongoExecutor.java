@@ -9,6 +9,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.FindOneAndUpdateOptions;
 import com.mongodb.client.model.ReturnDocument;
+import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.UpdateResult;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
@@ -111,6 +112,17 @@ public class MongoExecutor {
                 log.info("MongoDB OK: appId={}, cmd={}, collection={}", appId, cmd, collectionName);
                 return HegOperationResponse.success(request.getRequestId(), "OK");
             }
+            // CREATE_COLLECTION：集合尚不存在，必须走 database 级 API；已存在时视为幂等成功
+            if ("CREATE_COLLECTION".equals(cmd)) {
+                if (!collectionReallyExists(db, collectionName)) {
+                    db.createCollection(collectionName);
+                    log.info("MongoDB OK: appId={}, cmd={}, collection={}, created=true", appId, cmd, collectionName);
+                } else {
+                    log.info("MongoDB OK: appId={}, cmd={}, collection={}, created=false (already exists)",
+                            appId, cmd, collectionName);
+                }
+                return HegOperationResponse.success(request.getRequestId(), "OK");
+            }
 
             MongoCollection<Document> collection = db.getCollection(collectionName);
             BiFunction<MongoCollection<Document>, Map<String, Object>, Object> handler = handlers.get(cmd);
@@ -198,13 +210,23 @@ public class MongoExecutor {
     private Object handleUpdate(MongoCollection<Document> coll, Map<String, Object> p) {
         Document query = safeDoc(p.get("query"));
         if (query.isEmpty()) return 0L;
-        return coll.updateOne(query, safeDoc(p.get("update"))).getModifiedCount();
+        UpdateOptions opts = new UpdateOptions().upsert(boolParam(p, "upsert"));
+        return coll.updateOne(query, safeDoc(p.get("update")), opts).getModifiedCount();
     }
 
     private Object handleUpdateMulti(MongoCollection<Document> coll, Map<String, Object> p) {
         Document query = safeDoc(p.get("query"));
         if (query.isEmpty()) return 0L;
-        return coll.updateMany(query, safeDoc(p.get("update"))).getModifiedCount();
+        UpdateOptions opts = new UpdateOptions().upsert(boolParam(p, "upsert"));
+        return coll.updateMany(query, safeDoc(p.get("update")), opts).getModifiedCount();
+    }
+
+    private boolean boolParam(Map<String, Object> p, String key) {
+        if (p == null) return false;
+        Object v = p.get(key);
+        if (v instanceof Boolean) return (Boolean) v;
+        if (v instanceof Number) return ((Number) v).intValue() != 0;
+        return v != null && Boolean.parseBoolean(String.valueOf(v));
     }
 
     private Object handleDelete(MongoCollection<Document> coll, Map<String, Object> p) {

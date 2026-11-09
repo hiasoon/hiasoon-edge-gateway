@@ -4,6 +4,10 @@ FROM eclipse-temurin:17-jre-alpine
 LABEL maintainer="hiasoon.com"
 LABEL description="Hiasoon Edge Gateway (HEG)"
 
+# 镜像版本，构建时由 heg.sh 通过 --build-arg APP_VERSION=${IMAGE_TAG} 注入
+ARG APP_VERSION=1.0.1
+LABEL version="${APP_VERSION}"
+
 # 安装curl用于健康检查
 RUN apk add --no-cache curl
 

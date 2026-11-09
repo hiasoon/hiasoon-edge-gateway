@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: hiasoon-edge-gateway:1.0.0
+    image: hiasoon/hiasoon-edge-gateway:1.0.1
     container_name: heg
     restart: unless-stopped
     ports:

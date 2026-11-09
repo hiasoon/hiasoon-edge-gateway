@@ -10,8 +10,12 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.Tuple;
 import redis.clients.jedis.ZParams;
+import redis.clients.jedis.args.ListDirection;
+import redis.clients.jedis.params.GetExParams;
+import redis.clients.jedis.params.LPosParams;
 import redis.clients.jedis.params.SetParams;
 import redis.clients.jedis.params.ZAddParams;
+import redis.clients.jedis.resps.KeyedZSetElement;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,27 +60,33 @@ public class RedisExecutor {
         handlers.put("GETSET",     (j, o) -> j.getSet(o.getKey(), serializeValue(o.getValue())));
         handlers.put("MGET",       (j, o) -> j.mget(strArrayParam(o.getExtraParams(), "keys")));
         handlers.put("GETRANGE",   (j, o) -> j.getrange(o.getKey(), longParam(o.getExtraParams(), "start"), longParam(o.getExtraParams(), "end")));
+        // Redis 6.2+ 语义命令（value 级原子操作）
+        handlers.put("GETDEL",     (j, o) -> j.getDel(o.getKey()));
+        handlers.put("GETEX",      this::handleGetEx);
+        handlers.put("BITFIELD",   (j, o) -> j.bitfield(o.getKey(), strArrayParam(o.getExtraParams(), "bitFieldArgs")));
 
         // Hash
         handlers.put("HGET",       (j, o) -> j.hget(o.getKey(), field(o)));
         handlers.put("HSET",       (j, o) -> j.hset(o.getKey(), field(o), serializeValue(o.getValue())));
-        handlers.put("HDEL",       (j, o) -> j.hdel(o.getKey(), field(o)));
+        handlers.put("HDEL",       this::handleHDel);
         handlers.put("HGETALL",    (j, o) -> j.hgetAll(o.getKey()));
         handlers.put("HEXISTS",    (j, o) -> j.hexists(o.getKey(), field(o)));
         handlers.put("HMGET",      (j, o) -> j.hmget(o.getKey(), strArrayParam(o.getExtraParams(), "fields")));
         handlers.put("HKEYS",      (j, o) -> j.hkeys(o.getKey()));
         handlers.put("HVALS",      (j, o) -> j.hvals(o.getKey()));
         handlers.put("HLEN",       (j, o) -> j.hlen(o.getKey()));
+        handlers.put("HSTRLEN",    (j, o) -> j.hstrlen(o.getKey(), field(o)));
         handlers.put("HMSET",      (j, o) -> j.hmset(o.getKey(), strMapParam(o.getExtraParams(), "hashMap")));
         handlers.put("HSETNX",     (j, o) -> j.hsetnx(o.getKey(), field(o), serializeValue(o.getValue())));
         handlers.put("HINCRBY",    (j, o) -> j.hincrBy(o.getKey(), field(o), safeLong(o.getValue())));
         handlers.put("HINCRBYFLOAT", (j, o) -> j.hincrByFloat(o.getKey(), field(o), safeDouble(o.getValue())));
+        handlers.put("HRANDFIELD", this::handleHRandField);
 
         // List
         handlers.put("LPUSH",      this::handleLPush);
         handlers.put("RPUSH",      this::handleRPush);
-        handlers.put("LPOP",       (j, o) -> j.lpop(o.getKey()));
-        handlers.put("RPOP",       (j, o) -> j.rpop(o.getKey()));
+        handlers.put("LPOP",       this::handleLPop);
+        handlers.put("RPOP",       this::handleRPop);
         handlers.put("LRANGE",     (j, o) -> j.lrange(o.getKey(), longParam(o.getExtraParams(), "start"), longParam(o.getExtraParams(), "end")));
         handlers.put("LLEN",       (j, o) -> j.llen(o.getKey()));
         handlers.put("BLPOP",      (j, o) -> j.blpop(intParam(o.getExtraParams(), "timeout"), o.getKey()));
@@ -90,12 +100,20 @@ public class RedisExecutor {
         handlers.put("LREM",       (j, o) -> j.lrem(o.getKey(), longParam(o.getExtraParams(), "count"), serializeValue(o.getValue())));
         handlers.put("LINDEX",     (j, o) -> j.lindex(o.getKey(), longParam(o.getExtraParams(), "index")));
         handlers.put("LTRIM",      (j, o) -> j.ltrim(o.getKey(), longParam(o.getExtraParams(), "start"), longParam(o.getExtraParams(), "end")));
+        handlers.put("LPOS",       this::handleLPos);
+        handlers.put("LMOVE",      (j, o) -> j.lmove(o.getKey(), strParam(o.getExtraParams(), "destinationKey"),
+                                                    listDirection(o.getExtraParams(), "from"), listDirection(o.getExtraParams(), "to")));
+        handlers.put("BLMOVE",     (j, o) -> j.blmove(o.getKey(), strParam(o.getExtraParams(), "destinationKey"),
+                                                    listDirection(o.getExtraParams(), "from"), listDirection(o.getExtraParams(), "to"),
+                                                    safeDouble(o.getExtraParams() != null ? o.getExtraParams().get("timeout") : null)));
 
         // Set
         handlers.put("SADD",       (j, o) -> j.sadd(o.getKey(), serializeValues(o)));
         handlers.put("SREM",       (j, o) -> j.srem(o.getKey(), serializeValues(o)));
         handlers.put("SMEMBERS",   (j, o) -> j.smembers(o.getKey()));
         handlers.put("SISMEMBER",  (j, o) -> j.sismember(o.getKey(), serializeValue(o.getValue())));
+        handlers.put("SMISMEMBER", (j, o) -> j.smismember(o.getKey(), serializeValues(o)));
+        handlers.put("SMOVE",      (j, o) -> j.smove(o.getKey(), strParam(o.getExtraParams(), "destinationKey"), serializeValue(o.getValue())));
         handlers.put("SCARD",      (j, o) -> j.scard(o.getKey()));
         handlers.put("SPOP",       (j, o) -> j.spop(o.getKey()));
         handlers.put("SRANDMEMBER", (j, o) -> j.srandmember(o.getKey()));
@@ -127,6 +145,20 @@ public class RedisExecutor {
         handlers.put("ZINTERSTORE", this::handleZInterStore);
         handlers.put("ZRANGEBYLEX", this::handleZRangeByLex);
         handlers.put("ZREVRANGEBYLEX", this::handleZRevRangeByLex);
+        // ZSet 多键集合运算（不落盘）与弹出/随机/批量取分
+        handlers.put("ZUNION",     this::handleZUnion);
+        handlers.put("ZINTER",     this::handleZInter);
+        handlers.put("ZDIFF",      this::handleZDiff);
+        handlers.put("ZDIFFSTORE", (j, o) -> j.zdiffStore(strParam(o.getExtraParams(), "destKey"),
+                                                          prependKey(o.getKey(), strArrayParam(o.getExtraParams(), "otherKeys"))));
+        handlers.put("ZPOPMAX",    this::handleZPopMax);
+        handlers.put("ZPOPMIN",    this::handleZPopMin);
+        handlers.put("BZPOPMAX",   (j, o) -> keyedZSetToMap(j.bzpopmax(
+                safeDouble(o.getExtraParams() != null ? o.getExtraParams().get("timeout") : null), o.getKey())));
+        handlers.put("BZPOPMIN",   (j, o) -> keyedZSetToMap(j.bzpopmin(
+                safeDouble(o.getExtraParams() != null ? o.getExtraParams().get("timeout") : null), o.getKey())));
+        handlers.put("ZRANDMEMBER", this::handleZRandMember);
+        handlers.put("ZMSCORE",    (j, o) -> j.zmscore(o.getKey(), strArrayParam(o.getExtraParams(), "values")));
 
         // Key
         handlers.put("DEL",        this::handleDel);
@@ -140,6 +172,166 @@ public class RedisExecutor {
         // Pub/Sub
         handlers.put("PUBLISH",    (j, o) -> j.publish(strParam(o.getExtraParams(), "channel"), serializeValue(o.getValue())));
     }
+    // ==================== String / Value Handlers ====================
+
+    /**
+     * GETEX key [EX seconds | PERSIST]
+     * 云端 extra: ex=秒（设置过期）/ persist=true（移除过期）
+     */
+    private Object handleGetEx(Jedis jedis, RedisOperation op) {
+        Map<String, Object> e = op.getExtraParams();
+        GetExParams params = GetExParams.getExParams();
+        if (e != null && boolParam(e, "persist")) {
+            params.persist();
+        } else if (e != null && e.get("ex") instanceof Number) {
+            params.ex(((Number) e.get("ex")).intValue());
+        }
+        return jedis.getEx(op.getKey(), params);
+    }
+
+    // ==================== Hash Handlers ====================
+
+    /** HDEL key field [field ...] —— 兼容单字段（field）与多字段（fields[]）两种入参 */
+    private Object handleHDel(Jedis jedis, RedisOperation op) {
+        String[] fields = strArrayParam(op.getExtraParams(), "fields");
+        if (fields.length == 0) {
+            return jedis.hdel(op.getKey(), field(op));
+        }
+        return jedis.hdel(op.getKey(), fields);
+    }
+
+    /** HRANDFIELD key [count [WITHVALUES]] */
+    private Object handleHRandField(Jedis jedis, RedisOperation op) {
+        Map<String, Object> e = op.getExtraParams();
+        boolean hasCount = e != null && e.containsKey("count");
+        boolean withValues = e != null && boolParam(e, "withValues");
+        if (!hasCount) {
+            return jedis.hrandfield(op.getKey());
+        }
+        long count = longParam(e, "count");
+        List<String> fields = jedis.hrandfield(op.getKey(), count);
+        if (!withValues) {
+            return fields;
+        }
+        // WITHVALUES 用 HMGET 显式取值，保证返回值为原始字符串（避免 Jedis 版本间 Map 值类型差异）
+        Map<String, Object> map = new LinkedHashMap<>();
+        if (fields != null && !fields.isEmpty()) {
+            List<String> values = jedis.hmget(op.getKey(), fields.toArray(new String[0]));
+            for (int i = 0; i < fields.size() && i < values.size(); i++) {
+                map.put(fields.get(i), values.get(i));
+            }
+        }
+        return map;
+    }
+
+    // ==================== List Handlers ====================
+
+    private Object handleLPop(Jedis jedis, RedisOperation op) {
+        Map<String, Object> e = op.getExtraParams();
+        if (e != null && e.containsKey("count")) {
+            return jedis.lpop(op.getKey(), intParam(e, "count"));
+        }
+        return jedis.lpop(op.getKey());
+    }
+
+    private Object handleRPop(Jedis jedis, RedisOperation op) {
+        Map<String, Object> e = op.getExtraParams();
+        if (e != null && e.containsKey("count")) {
+            return jedis.rpop(op.getKey(), intParam(e, "count"));
+        }
+        return jedis.rpop(op.getKey());
+    }
+
+    /** LPOS key element [RANK rank] [COUNT count] */
+    private Object handleLPos(Jedis jedis, RedisOperation op) {
+        Map<String, Object> e = op.getExtraParams();
+        String value = serializeValue(op.getValue());
+        LPosParams params = LPosParams.lPosParams();
+        if (e != null && e.containsKey("rank")) {
+            params.rank(intParam(e, "rank"));
+        }
+        if (e != null && e.containsKey("maxlen")) {
+            params.maxlen(intParam(e, "maxlen"));
+        }
+        if (e != null && e.containsKey("count")) {
+            return jedis.lpos(op.getKey(), value, params, longParam(e, "count"));
+        }
+        return jedis.lpos(op.getKey(), value, params);
+    }
+
+    private ListDirection listDirection(Map<String, Object> extra, String key) {
+        String v = strParam(extra, key);
+        return "RIGHT".equalsIgnoreCase(v) ? ListDirection.RIGHT : ListDirection.LEFT;
+    }
+
+    // ==================== ZSet Handlers ====================
+
+    private Object handleZUnion(Jedis jedis, RedisOperation op) {
+        Map<String, Object> e = op.getExtraParams();
+        String[] keys = prependKey(op.getKey(), strArrayParam(e, "otherKeys"));
+        if (e != null && boolParam(e, "withScores")) {
+            return tupleSetToMaps(jedis.zunionWithScores(buildZParams(e), keys));
+        }
+        return new ArrayList<>(jedis.zunion(buildZParams(e), keys));
+    }
+
+    private Object handleZInter(Jedis jedis, RedisOperation op) {
+        Map<String, Object> e = op.getExtraParams();
+        String[] keys = prependKey(op.getKey(), strArrayParam(e, "otherKeys"));
+        if (e != null && boolParam(e, "withScores")) {
+            return tupleSetToMaps(jedis.zinterWithScores(buildZParams(e), keys));
+        }
+        return new ArrayList<>(jedis.zinter(buildZParams(e), keys));
+    }
+
+    private Object handleZDiff(Jedis jedis, RedisOperation op) {
+        Map<String, Object> e = op.getExtraParams();
+        String[] keys = prependKey(op.getKey(), strArrayParam(e, "otherKeys"));
+        if (e != null && boolParam(e, "withScores")) {
+            return tupleSetToMaps(jedis.zdiffWithScores(keys));
+        }
+        return new ArrayList<>(jedis.zdiff(keys));
+    }
+
+    private Object handleZPopMax(Jedis jedis, RedisOperation op) {
+        Map<String, Object> e = op.getExtraParams();
+        if (e != null && e.containsKey("count")) {
+            return tupleSetToMaps(jedis.zpopmax(op.getKey(), intParam(e, "count")));
+        }
+        return tupleSetToMaps(jedis.zpopmax(op.getKey()));
+    }
+
+    private Object handleZPopMin(Jedis jedis, RedisOperation op) {
+        Map<String, Object> e = op.getExtraParams();
+        if (e != null && e.containsKey("count")) {
+            return tupleSetToMaps(jedis.zpopmin(op.getKey(), intParam(e, "count")));
+        }
+        return tupleSetToMaps(jedis.zpopmin(op.getKey()));
+    }
+
+    /** ZRANDMEMBER key [count [WITHSCORES]] */
+    private Object handleZRandMember(Jedis jedis, RedisOperation op) {
+        Map<String, Object> e = op.getExtraParams();
+        boolean hasCount = e != null && e.containsKey("count");
+        boolean withScores = e != null && boolParam(e, "withScores");
+        if (!hasCount) {
+            return jedis.zrandmember(op.getKey());
+        }
+        long count = longParam(e, "count");
+        if (withScores) {
+            return tupleSetToMaps(jedis.zrandmemberWithScores(op.getKey(), count));
+        }
+        return new ArrayList<>(jedis.zrandmember(op.getKey(), count));
+    }
+
+    private Object keyedZSetToMap(KeyedZSetElement element) {
+        if (element == null) return null;
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("value", element.getElement());
+        map.put("score", element.getScore());
+        return map;
+    }
+
     // ==================== Core Dispatch ====================
 
     public HegOperationResponse execute(HegOperationRequest request) {
